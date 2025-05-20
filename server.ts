@@ -1,8 +1,9 @@
-import express from "express";
-import cors from "cors";
-import type { Request, Response } from "express";
 import { Agendamento, Convenio, Disponibilidade, Especialidade } from "./types";
+import type { Request, Response } from "express";
+
+import cors from "cors";
 import { db } from "./db";
+import express from "express";
 import { getNextId } from "./db";
 import { obterDiaDaSemana } from "./utils";
 
@@ -56,9 +57,22 @@ app.post("/api/disponibilidades/definir", (req: Request, res: Response) => {
 });
 
 app.post("/api/disponibilidades", (req: Request, res: Response) => {
-  const { especialidadeId, data, medico } = req.body;
+  const { especialidadeId, data, medico } = req.body || {};
+
+  if (!especialidadeId || !data) {
+    return res
+      .status(400)
+      .json({ erro: "especialidadeId e data são obrigatórios." });
+  }
+
+  const diaSemana = obterDiaDaSemana(data);
+
   const response = db.disponibilidades.filter((d) => {
-    return d.especialidadeId === especialidadeId && d.medico === medico && d.diaSemana === obterDiaDaSemana(data);
+    const mesmaEspecialidade = d.especialidadeId === especialidadeId;
+    const mesmoDia = d.diaSemana === diaSemana;
+    const mesmoMedico = medico ? d.medico === medico : true;
+
+    return mesmaEspecialidade && mesmoDia && mesmoMedico;
   });
 
   res.json(response);
@@ -69,11 +83,16 @@ app.post("/api/agendamentos", (req: Request, res: Response) => {
   const { paciente, especialidadeId, convenioId, dataHora } = req.body;
 
   const disponibilidades = db.disponibilidades.filter((d) => {
-    return d.especialidadeId === especialidadeId && d.diaSemana === obterDiaDaSemana(dataHora);
+    return (
+      d.especialidadeId === especialidadeId &&
+      d.diaSemana === obterDiaDaSemana(dataHora)
+    );
   });
 
   if (disponibilidades.length === 0) {
-    return res.status(400).send("Horário não disponível para essa especialidade!");
+    return res
+      .status(400)
+      .send("Horário não disponível para essa especialidade!");
   }
 
   const disponibilidade = disponibilidades[0];
@@ -99,7 +118,9 @@ app.get("/api/agendamentos", (req: Request, res: Response) => {
 
   if (paciente) {
     console.log(agendamentos, paciente);
-    agendamentos = agendamentos.filter((ag) => ag.paciente.toLowerCase().includes(paciente.toString().toLowerCase()));
+    agendamentos = agendamentos.filter((ag) =>
+      ag.paciente.toLowerCase().includes(paciente.toString().toLowerCase())
+    );
     console.log("Filtrados", agendamentos);
   }
 
@@ -125,7 +146,7 @@ app.post("/api/atendimentos", (req: Request, res: Response) => {
   });
 });
 
-const PORT = 30300;
+const PORT = 3000;
 
 app.listen(PORT, () => {
   console.log(`Mock API running on port ${PORT}`);
